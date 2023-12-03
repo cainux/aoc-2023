@@ -1,40 +1,63 @@
 ﻿using System.Text.RegularExpressions;
 
-const char period = '.';
 var lines = File.ReadAllLines("input.txt");
 var maxX = lines[0].Length - 1;
 var maxY = lines.Length - 1;
-var acc = 0;
 
+// Part 1
+var acc1 = 0;
 for (var y = 0; y < lines.Length; y++)
-    acc += Regex.Matches(lines[y], @"\d+").Sum(m => IsPartNumber(m.Index, y, m.Length) ? int.Parse(m.Value) : 0);
+    acc1 += Regex.Matches(lines[y], @"\d+").Sum(m => PartNumber(m, y));
+Console.WriteLine(acc1);
 
-Console.WriteLine(acc);
+// Part 2
+var acc2 = 0;
+for (var y = 0; y < lines.Length; y++)
+    acc2 += Regex.Matches(lines[y], @"\*").Sum(m => Ratio(m.Index, y));
+Console.WriteLine(acc2);
 
 return;
 
-bool IsPartNumber(int x, int y, int length)
+int PartNumber(Match m, int y)
 {
-    if (x > 0 && lines[y][x - 1] != period) return true;
-    if (x + length < maxX && lines[y][x + length] != period) return true;
+    const char period = '.';
+    if (m.Index > 0 && lines[y][m.Index - 1] != period)
+        return int.Parse(m.Value);
+    if (m.Index + m.Length < maxX && lines[y][m.Index + m.Length] != period)
+        return int.Parse(m.Value);
 
-    if (y > 0)
-    {
-        var lineAbove = lines[y - 1];
-        var start = Math.Max(0, x - 1);
-        var end = Math.Min(maxX, x + length);
-        for (var i = start; i <= end; i++)
-            if (lineAbove[i] != period) return true;
-    }
+    foreach (var adjacentLine in GetAdjacentLines(y))
+        for (var i = Math.Max(0, m.Index - 1); i <= Math.Min(maxX, m.Index + m.Length); i++)
+            if (adjacentLine[i] != period)
+                return int.Parse(m.Value);
 
-    if (y + 1 < maxY)
-    {
-        var lineBelow = lines[y + 1];
-        var start = Math.Max(0, x - 1);
-        var end = Math.Min(maxX, x + length);
-        for (var i = start; i <= end; i++)
-            if (lineBelow[i] != period) return true;
-    }
+    return 0;
+}
 
-    return false;
+int Ratio(int x, int y)
+{
+    var adjacentNumbers = new List<int>();
+    var numbersOnLine = Regex.Matches(lines[y], @"\d+");
+
+    foreach (Match number in numbersOnLine)
+        if (number.Index == x + 1 || number.Index + number.Length == x)
+            adjacentNumbers.Add(int.Parse(number.Value));
+
+    foreach (var adjacentLine in GetAdjacentLines(y))
+        foreach (Match n in Regex.Matches(adjacentLine, @"\d+"))
+        {
+            if (x >= n.Index - 1 && x <= n.Index + n.Length)
+                adjacentNumbers.Add(int.Parse(n.Value));
+
+            if (adjacentNumbers.Count > 2)
+                return 0;
+        }
+
+    return adjacentNumbers.Count == 2 ? adjacentNumbers[0] * adjacentNumbers[1] : 0;
+}
+
+IEnumerable<string> GetAdjacentLines(int y)
+{
+    if (y > 0) yield return lines[y - 1];
+    if (y < maxY) yield return lines[y + 1];
 }
