@@ -21,28 +21,44 @@ var allowedPipes = new Dictionary<string, string>
 
 var S = lines.Select((line, i) => new P(line.IndexOf('S'), i)).Single(x => x.X >= 0);
 
-var currentLocation = S;
-var previousLocation = S;
-var acc = 0;
+var curr = S;
+var prev = S;
+var loop = new List<P>();
 
 while (true)
 {
-    var nextLocation = NextPipeLocation(currentLocation, previousLocation);
+    var nextLocation = NextPipeLocation(curr, prev);
     if (nextLocation == S)
         break;
-    acc++;
-    previousLocation = currentLocation;
-    currentLocation = nextLocation;
+    loop.Add(nextLocation);
+    prev = curr;
+    curr = nextLocation;
 }
 
-Console.WriteLine((acc + 1)/2);
+Console.WriteLine($"Part 1: {(loop.Count + 1)/2}");
+
+var loopSet = loop.Select(p => $"{p.X},{p.Y}").ToHashSet();
+var polygon = loop.Select(p => new PF(p.X, p.Y)).ToArray();
+var acc = 0;
+
+for (var y = 0; y < lines.Length; y++)
+    for (var x = 0; x < lines[0].Length; x++)
+    {
+        if (loopSet.Contains($"{x},{y}"))
+            continue;
+
+        if (PointInsidePolygon(new PF(x, y), polygon))
+            acc++;
+    }
+
+Console.WriteLine($"Part 2: {acc}");
 
 return;
 
 P NextPipeLocation(P current, P previous)
 {
     var currentPipe = lines[current.Y][current.X];
-    Console.WriteLine($"{currentPipe} {current}");
+    // Console.WriteLine($"{currentPipe} {current}");
     var (x, y) = current;
     var east = new P(x + 1, y); var west = new P(x - 1, y);
     var north = new P(x, y - 1); var south = new P(x, y + 1);
@@ -58,4 +74,29 @@ P NextPipeLocation(P current, P previous)
 
 bool CanGoTo(string k, P p) => allowedPipes.ContainsKey(k) && allowedPipes[k].Contains(lines[p.Y][p.X]);
 
+static bool PointInsidePolygon(PF testPoint, PF[] polygon) // Point Inside Polygon Algorithm, taken from https://stackoverflow.com/a/14998816
+{
+    var result = false;
+    var j = polygon.Length - 1;
+
+    for (var i = 0; i < polygon.Length; i++)
+    {
+        if (polygon[i].Y < testPoint.Y && polygon[j].Y >= testPoint.Y ||
+            polygon[j].Y < testPoint.Y && polygon[i].Y >= testPoint.Y)
+        {
+            if (polygon[i].X + (testPoint.Y - polygon[i].Y) /
+               (polygon[j].Y - polygon[i].Y) *
+               (polygon[j].X - polygon[i].X) < testPoint.X)
+            {
+                result = !result;
+            }
+        }
+        j = i;
+    }
+
+    return result;
+}
+
 internal record P(int X, int Y) { public override string ToString() => $"({X+1},{Y+1})"; }
+
+internal record PF(float X, float Y) { public override string ToString() => $"({X+1},{Y+1})"; }
