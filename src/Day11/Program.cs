@@ -1,76 +1,52 @@
 ﻿// ReSharper disable InconsistentNaming
+global using P = (int X, int Y);
 using System.Text.RegularExpressions;
 
 var lines = File.ReadAllLines("input.txt");
-var expanded = Expand(lines);
+var G = lines.SelectMany((row, y) => Regex.Matches(row, "\\#").Select(m => new P(m.Index, y))).ToArray();
+var pairs = G.SelectMany((G1, i) => G.Skip(i + 1).Select(G2 => (G1, G2)));
+var xs = new HashSet<int>(); var ys = new HashSet<int>();
 
-var G = expanded
-    .SelectMany((row, y) => Regex.Matches(row, "\\#").Select(m => new P(m.Index, y)))
-    .ToArray();
+for (var x = 0; x < lines[0].Length; x++)
+    if (!string.Join(null, lines.Select(l => l[x]).ToArray()).Contains('#'))
+        xs.Add(x);
 
-var pairs = G.SelectMany((G1, i) => G.Skip(i + 1).Select(G2 => (G1, G2))).ToArray();
+for (var y = 0; y < lines.Length; y++)
+    if (!lines[y].Contains('#'))
+        ys.Add(y);
 
-Console.WriteLine($"There are {G.Length} galaxies and {pairs.Length} pairs");
-Console.WriteLine();
+var paths = pairs.Select(x => ShortestPath(x.G1, x.G2, lines[0].Length, lines.Length)).ToArray();
 
-// Part 1
-var part1 = pairs
-    .Select(x => ShortestPath(x.G1, x.G2, expanded[0].Length, expanded.Length))
-    .Select(x => x.Length)
-    .Sum();
-
-Console.WriteLine($"Part 1: {part1}");
-
+Console.WriteLine($"Part 1: {paths.Sum(p => CalculateDistance(p, xs, ys, 2))}");
+Console.WriteLine($"Part 2: {paths.Sum(p => CalculateDistance(p, xs, ys, 1000000))}");
 return;
 
-static string[] Expand(IReadOnlyList<string> input)
-{
-    var output = new List<string>(input.Count);
-    var emptyXs = new List<int>();
-
-    for (var x = 0; x < input[0].Length; x++)
-        if (!string.Join(null, input.Select(l => l[x]).ToArray()).Contains('#'))
-            emptyXs.Add(x);
-
-    emptyXs.Reverse();
-
-    foreach (var row in input)
-    {
-        var newRow = emptyXs.Aggregate(row, (current, x) => current.Insert(x, "."));
-        output.Add(newRow);
-
-        if (!newRow.Contains('#')) output.Add(newRow);
-    }
-
-    return output.ToArray();
-}
-
-P[] ShortestPath(P G1, P G2, int maxX, int maxY)
+static IEnumerable<P> ShortestPath(P G1, P G2, int maxX, int maxY)
 {
     var shortestPath = new List<P>();
     var current = G1;
+    var prev = current;
 
     while (current != G2)
     {
-        var next = GetNeighbours(current, maxX, maxY)
-            .OrderBy(p => ManhattanDistance(p, G2))
-            .First();
-
+        var next = GetNeighbours(current, prev, maxX, maxY).MinBy(p => ManhattanDistance(p, G2));
         shortestPath.Add(next);
+        prev = current;
         current = next;
     }
 
-    return shortestPath.ToArray();
+    return shortestPath;
 }
 
-static IEnumerable<P> GetNeighbours(P G, int maxX, int maxY)
+static IEnumerable<P> GetNeighbours(P G, P prev, int maxX, int maxY)
 {
-    if (G.X > 0) yield return G with {X = G.X - 1};
-    if (G.X < maxX) yield return G with {X = G.X + 1};
-    if (G.Y > 0) yield return G with {Y = G.Y - 1};
-    if (G.Y < maxY) yield return G with {Y = G.Y + 1};
+    if (prev != G with {X = G.X - 1} && G.X > 0) yield return G with {X = G.X - 1};
+    if (prev != G with {X = G.X + 1} && G.X < maxX) yield return G with {X = G.X + 1};
+    if (prev != G with {Y = G.Y - 1} && G.Y > 0) yield return G with {Y = G.Y - 1};
+    if (prev != G with {Y = G.Y + 1} && G.Y < maxY) yield return G with {Y = G.Y + 1};
 }
 
 static int ManhattanDistance(P G1, P G2) => Math.Abs(G1.X - G2.X) + Math.Abs(G1.Y - G2.Y);
 
-internal record P(int X, int Y) { public override string ToString() => $"({X+1},{Y+1})"; }
+static long CalculateDistance(IEnumerable<P> path, IReadOnlySet<int> xs, IReadOnlySet<int> ys, int multiplier) =>
+    path.Aggregate(0, (i, s) => i + 1 * (xs.Contains(s.X) || ys.Contains(s.Y) ? multiplier : 1));
