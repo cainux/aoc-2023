@@ -1,31 +1,50 @@
-﻿using System.Text;
-using System.Text.RegularExpressions;
+﻿var lines = File.ReadAllLines("input.txt").Select(x => x.Split(" ")).ToArray();
+var input1 = lines.Select(x => (x[0], x[1].Split(',').Select(long.Parse).ToArray()));
 
-var lines = File.ReadAllLines("input.txt")
-    .Select(x => x.Split(" "))
-    .Select(x => (x[0], x[1].Split(',').Select(int.Parse).ToArray()));
-
-var part1 = lines.Sum(l => ValidArrangements(l.Item1, l.Item2, 0));
-
+Dictionary<string, long> cache = new();
+var part1 = input1.Sum(l => Walk(string.Empty, l.Item1, l.Item2));
 Console.WriteLine($"Part 1: {part1}");
+
+var input2 = lines.Select(x =>
+    (
+        string.Join("?", Enumerable.Repeat(x[0], 5)),
+        string.Join(",", Enumerable.Repeat(x[1], 5)).Split(',').Select(long.Parse).ToArray()
+    ));
+
+var part2 = input2.Sum(l => Walk(string.Empty, l.Item1, l.Item2));
+Console.WriteLine($"Part 2: {part2}");
 return;
 
-int ValidArrangements(string input, IReadOnlyList<int> constraint, int acc)
+long Walk(string damaged, string input, long[] groups)
 {
-    var i = input.IndexOf('?');
-    if (i <= -1)
-        return Check(input, constraint) ? acc + 1 : acc;
+    if (groups.Length == 0)
+    {
+        if (input.Contains('#')) return 0;
+        return 1;
+    }
 
-    return ValidArrangements(new StringBuilder(input) {[i] = '#'}.ToString(), constraint, acc)
-           + ValidArrangements(new StringBuilder(input) {[i] = '.'}.ToString(), constraint, acc);
+    if (input.Length == 0 && damaged.Length == groups[0] && groups.Length == 1) return 1;
+    if (input.Length == 0) return 0;
+
+    return input[0] switch
+    {
+        '.' => damaged.Length == groups[0] ? CachedCall(Walk, string.Empty, input[1..], groups[1..])
+            : damaged.Length == 0 ? CachedCall(Walk, damaged, input[1..], groups)
+            : 0,
+        '#' => damaged.Length < groups[0] ? CachedCall(Walk, damaged + '#', input[1..], groups)
+            : 0,
+        '?' => CachedCall(Walk, damaged, '#' + input[1..], groups) + CachedCall(Walk, damaged, '.' + input[1..], groups),
+        _ => throw new System.Diagnostics.UnreachableException()
+    };
 }
 
-bool Check(string input, IReadOnlyList<int> constraint)
+long CachedCall(Func<string, string, long[], long> func, string damaged, string input, long[] groups)
 {
-    var broken = Regex.Matches(input, "\\#+");
-    if (broken.Count != constraint.Count) return false;
-    for (var i = 0; i < broken.Count; i++)
-        if (broken[i].Length != constraint[i]) return false;
+    var key = $"{damaged}|{input}|{string.Join(",", groups)}";
+    if (cache.TryGetValue(key, out var value))
+        return value;
 
-    return true;
+    value = func(damaged, input, groups);
+    cache.Add(key, value);
+    return value;
 }
